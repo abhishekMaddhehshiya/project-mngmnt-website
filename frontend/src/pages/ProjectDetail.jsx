@@ -9,14 +9,20 @@ const ProjectDetail = () => {
   const { user } = useAuthStore();
   const [project, setProject] = useState(null);
   const [documents, setDocuments] = useState([]);
+  const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploadFile, setUploadFile] = useState(null);
   const [classification, setClassification] = useState('internal');
   const [error, setError] = useState('');
   const [docError, setDocError] = useState('');
   const [docLoading, setDocLoading] = useState(false);
+  const [messageContent, setMessageContent] = useState('');
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [messageError, setMessageError] = useState('');
+  const [reviewResponse, setReviewResponse] = useState('');
 
   const canManage = user?.role === 'admin' || user?.role === 'project-lead';
+  const isDeveloper = user?.role === 'developer';
 
   const loadProject = async () => {
     try {
@@ -36,10 +42,19 @@ const ProjectDetail = () => {
     }
   };
 
+  const loadMessages = async () => {
+    try {
+      const response = await apiClient.get(`/messages/project/${id}`);
+      setMessages(response.data.data.messages || []);
+    } catch (err) {
+      console.error('Unable to load messages.');
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([loadProject(), loadDocuments()]);
+      await Promise.all([loadProject(), loadDocuments(), loadMessages()]);
       setLoading(false);
     };
 
@@ -100,6 +115,53 @@ const ProjectDetail = () => {
       setDocError('Failed to delete document.');
     }
   };
+
+  const handleSendMessage = async (event, type = 'message') => {
+    event.preventDefault();
+    setMessageError('');
+
+    if (!messageContent.trim()) {
+      setMessageError('Message cannot be empty.');
+      return;
+    }
+
+    try {
+      setMessageLoading(true);
+      await apiClient.post(`/messages/project/${id}`, {
+        content: messageContent,
+        type,
+      });
+      setMessageContent('');
+      await loadMessages();
+      if (type === 'completion-request') {
+        setMessageError('');
+      }
+    } catch (err) {
+      setMessageError(err.response?.data?.message || 'Failed to send message.');
+    } finally {
+      setMessageLoading(false);
+    }
+  };
+
+  const handleReviewCompletion = async (messageId, approved) => {
+    try {
+      setMessageLoading(true);
+      await apiClient.post(`/messages/${messageId}/review`, {
+        approved,
+        response: reviewResponse,
+      });
+      setReviewResponse('');
+      await Promise.all([loadProject(), loadMessages()]);
+    } catch (err) {
+      setMessageError(err.response?.data?.message || 'Failed to review request.');
+    } finally {
+      setMessageLoading(false);
+    }
+  };
+
+  const hasPendingCompletionRequest = messages.some(
+    (m) => m.type === 'completion-request' && !m.reviewedBy
+  );
 
   if (loading) {
     return (
@@ -225,6 +287,120 @@ const ProjectDetail = () => {
                     </button>
                   )}
                 </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      {/* Messages Section */}
+      <section className="card">
+        <div className="section-header">
+          <div>
+            <h2>Project Messages</h2>
+            <p className="muted">Communication and completion requests</p>
+          </div>
+        </div>
+
+        {messageError && <div className="banner error">{messageError}</div>}
+
+        {/* Send Message Form */}
+        <form className="message-form" onSubmit={handleSendMessage}>
+          <textarea
+            className="textarea"
+            placeholder="Type your message..."
+            value={messageContent}
+            onChange={(e) => setMessageContent(e.target.value)}
+            rows={3}
+            disabled={messageLoading}
+          />
+          <div className="message-actions">
+            <button 
+              type="submit" 
+              className="btn btn-primary" 
+              disabled={messageLoading || !messageContent.trim()}
+            >
+              {messageLoading ? 'Sending...' : 'Send Message'}
+            </button>
+            {isDeveloper && project.status === 'active' && !hasPendingCompletionRequest && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={(e) => handleSendMessage(e, 'completion-request')}
+                disabled={messageLoading || !messageContent.trim()}
+              >
+                Request Completion
+              </button>
+            )}
+          </div>
+        </form>
+
+        {/* Messages List */}
+        <div className="messages-list">
+          {messages.length === 0 ? (
+            <p className="muted">No messages yet. Start a conversation!</p>
+          ) : (
+            messages.map((msg) => (
+              <div 
+                key={msg._id} 
+                className={`message-item ${msg.type !== 'message' ? 'message-request' : ''} ${
+                  msg.type === 'completion-approved' ? 'message-approved' : ''
+                } ${msg.type === 'completion-rejected' ? 'message-rejected' : ''}`}
+              >
+                <div className="message-header">
+                  <strong>{msg.sender?.fullName}</strong>
+                  <span className="message-role">{msg.sender?.role}</span>
+                  <span className="message-time">
+                    {new Date(msg.createdAt).toLocaleString()}
+                  </span>
+                  {msg.type === 'completion-request' && !msg.reviewedBy && (
+                    <span className="message-badge pending">Pending Review</span>
+                  )}
+                  {msg.type === 'completion-approved' && (
+                    <span className="message-badge approved">Approved</span>
+                  )}
+                  {msg.type === 'completion-rejected' && (
+                    <span className="message-badge rejected">Rejected</span>
+                  )}
+                </div>
+                <p className="message-content">{msg.content}</p>
+                
+                {/* Review Response */}
+                {msg.reviewResponse && (
+                  <div className="review-response">
+                    <strong>Response from {msg.reviewedBy?.fullName}:</strong>
+                    <p>{msg.reviewResponse}</p>
+                  </div>
+                )}
+
+                {/* Review Actions for Admin/Project Lead */}
+                {canManage && msg.type === 'completion-request' && !msg.reviewedBy && (
+                  <div className="review-actions">
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="Add a response (optional)..."
+                      value={reviewResponse}
+                      onChange={(e) => setReviewResponse(e.target.value)}
+                    />
+                    <div className="review-buttons">
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => handleReviewCompletion(msg._id, true)}
+                        disabled={messageLoading}
+                      >
+                        Approve & Complete
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        onClick={() => handleReviewCompletion(msg._id, false)}
+                        disabled={messageLoading}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           )}

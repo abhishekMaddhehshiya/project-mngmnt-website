@@ -30,6 +30,7 @@ import userRoutes from './routes/userRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import assignableRoutes from './routes/assignableRoutes.js';
+import messageRoutes from './routes/messageRoutes.js';
 
 const app = express();
 
@@ -104,6 +105,7 @@ app.use('/api/users', assignableRoutes);  // Must be before userRoutes to match 
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/messages', messageRoutes);
 
 /**
  * SECURITY: 404 Not Found handler

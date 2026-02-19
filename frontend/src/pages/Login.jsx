@@ -67,6 +67,7 @@ const Login = () => {
   return (
     <div className="login-container">
       <div className="login-card">
+        <img src="/favicon.svg" alt="PixelForge Nexus" className="login-logo" />
         <h1>PixelForge Nexus</h1>
         <h2>Secure Project Management</h2>
 

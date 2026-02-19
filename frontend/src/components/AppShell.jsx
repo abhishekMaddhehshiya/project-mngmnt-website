@@ -39,7 +39,9 @@ const AppShell = ({ title, subtitle, actions, children }) => {
     <div className="app-shell">
       <header className="app-header">
         <div className="brand">
-          <div className="brand-mark" />
+          <div className="brand-mark">
+            <img src="/favicon.svg" alt="PixelForge Nexus" className="brand-logo" />
+          </div>
           <div>
             <span className="brand-title">PixelForge Nexus</span>
             <span className="brand-subtitle">Secure Project Ops</span>
