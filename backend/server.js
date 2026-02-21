@@ -16,7 +16,6 @@ import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import config from './config/config.js';
-import { seedDatabase } from './utils/seedDatabase.js';
 import {
   securityHeaders,
   globalRateLimit,
@@ -135,13 +134,6 @@ const connectDatabase = async () => {
       useUnifiedTopology: true,
     });
     console.log('✓ MongoDB connected successfully');
-    
-    // Seed demo users in development
-    if (config.nodeEnv === 'development') {
-      console.log('\nSeeding demo users...');
-      await seedDatabase();
-      console.log('');
-    }
   } catch (error) {
     console.error('✗ MongoDB connection failed:', error.message);
     process.exit(1);
